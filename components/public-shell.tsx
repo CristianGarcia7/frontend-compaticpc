@@ -17,6 +17,7 @@ export function PublicShell({ children }: { children: ReactNode }) {
           <Brand />
         </Link>
         <nav aria-label="Navegación pública">
+          <Link href="/precios">Precios</Link>
           <Link href="/ayuda">Ayuda</Link>
           {!loading && user ? (
             <Link className="button" href="/dashboard">
@@ -33,7 +34,10 @@ export function PublicShell({ children }: { children: ReactNode }) {
       <footer className="public-footer">
         <span>CompatiPC · Compatibilidad con criterio.</span>
         <nav aria-label="Enlaces del sitio">
+          <Link href="/precios">Precios</Link>
           <Link href="/ayuda">Ayuda</Link>
+          <Link href="/terminos">Términos</Link>
+          <Link href="/privacidad">Privacidad</Link>
         </nav>
       </footer>
     </div>
