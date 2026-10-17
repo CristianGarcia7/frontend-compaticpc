@@ -114,9 +114,12 @@ export default function App() {
   const geminiStatus = config.gemini?.status;
   const geminiDown =
     geminiStatus === "unavailable" || geminiStatus === "unconfigured";
+  // With Gemini down, steer to the demo; if the demo is disabled too, keep
+  // Gemini selectable because the API then answers with the rules fallback.
+  const geminiSelectable = !geminiDown || !config.demoEnabled;
   const effectiveMode =
-    mode ||
-    (config.geminiConfigured
+    (mode === "gemini" && !geminiSelectable ? "demo" : mode) ||
+    (config.geminiConfigured && geminiSelectable
       ? "gemini"
       : config.demoEnabled
         ? "demo"
@@ -132,6 +135,15 @@ export default function App() {
         setSpecifications(draft.specifications || "");
       } catch {}
       sessionStorage.removeItem("compatipc-query");
+    }
+  }, [pathname]);
+  useEffect(() => {
+    if (
+      pathname === routes.equipment &&
+      sessionStorage.getItem("compatipc-open-equipment-form")
+    ) {
+      sessionStorage.removeItem("compatipc-open-equipment-form");
+      setEquipmentForm(true);
     }
   }, [pathname]);
   useEffect(() => {
@@ -283,7 +295,22 @@ export default function App() {
     setError("");
     setNotice("");
   }
+  const dataLoading = (
+    <div className="loading inline" role="status">
+      <LoaderCircle className="spin" />
+      <p>Cargando sus datos…</p>
+    </div>
+  );
+  /** Opens the register-equipment form, also across a route change. */
+  function openEquipmentForm() {
+    if (pathname === routes.equipment) setEquipmentForm(true);
+    else {
+      sessionStorage.setItem("compatipc-open-equipment-form", "1");
+      navigate("equipment");
+    }
+  }
   function rows(items: Analysis[], emptyState: ReactNode) {
+    if (!items.length && !session.dataLoaded) return dataLoading;
     return items.length ? (
       <div className="table-wrap">
         <table>
@@ -351,7 +378,9 @@ export default function App() {
         guardado en este espacio.
       </p>
       <Button
-        onClick={() => navigate(equipment.length ? "query" : "equipment")}
+        onClick={() =>
+          equipment.length ? navigate("query") : openEquipmentForm()
+        }
       >
         {equipment.length ? "Realizar consulta" : "Registrar un equipo"}
         <ArrowRight size={16} />
@@ -383,7 +412,7 @@ export default function App() {
     );
   if (!user)
     return (
-      <div className="auth-page">
+      <main className="auth-page">
         <section className="auth-story">
           <Brand />
           <div className="auth-copy">
@@ -446,6 +475,7 @@ export default function App() {
                   setSession({ flash: "" });
                 }}
                 className={authMode === "register" ? "active" : ""}
+                aria-pressed={authMode === "register"}
               >
                 Crear cuenta
               </button>
@@ -456,6 +486,7 @@ export default function App() {
                   setSession({ flash: "" });
                 }}
                 className={authMode === "login" ? "active" : ""}
+                aria-pressed={authMode === "login"}
               >
                 Iniciar sesión
               </button>
@@ -543,7 +574,7 @@ export default function App() {
             CompatiPC · Tecnología que ayuda a decidir.
           </p>
         </section>
-      </div>
+      </main>
     );
   const nav = [
     { id: "dashboard", label: "Vista general", icon: LayoutDashboard },
@@ -728,6 +759,7 @@ export default function App() {
                   analysesCount={stats.analyses}
                   analyses={analyses}
                   onNavigate={navigate}
+                  onRegisterEquipment={openEquipmentForm}
                 />
               )}
               <section className="hero">
@@ -898,7 +930,9 @@ export default function App() {
                   </form>
                 </section>
               )}
-              {equipment.length ? (
+              {!equipment.length && !session.dataLoaded ? (
+                dataLoading
+              ) : equipment.length ? (
                 <div className="equipment-grid">
                   {equipment.map((e) => (
                     <EquipmentCard
@@ -948,7 +982,9 @@ export default function App() {
                   </div>
                   <Search size={23} />
                 </div>
-                {!equipment.length ? (
+                {!equipment.length && !session.dataLoaded ? (
+                  dataLoading
+                ) : !equipment.length ? (
                   <div className="empty">
                     <Monitor size={32} />
                     <h3>Primero, registre un equipo</h3>
@@ -1047,13 +1083,19 @@ export default function App() {
                           value="gemini"
                           checked={effectiveMode === "gemini"}
                           onChange={() => setMode("gemini")}
+                          disabled={!geminiSelectable}
+                          aria-describedby="gemini-mode-note"
                         />
                         <div>
                           <strong>Analizar con Gemini</strong>
-                          <span>
-                            {config.geminiConfigured
-                              ? "IA configurada en el servidor"
-                              : "Requiere configurar la clave"}
+                          <span id="gemini-mode-note">
+                            {!geminiSelectable
+                              ? geminiStatus === "unavailable"
+                                ? "No disponible ahora: Gemini no está respondiendo. Use la demostración o intente más tarde."
+                                : "No disponible: Gemini no está configurado en el servidor."
+                              : config.geminiConfigured
+                                ? "IA configurada en el servidor"
+                                : "Requiere configurar la clave"}
                           </span>
                         </div>
                       </label>
@@ -1463,26 +1505,33 @@ export default function App() {
                         Layers,
                       ],
                     ] as const
-                  ).map(([key, title, Icon]) => (
-                    <section className="result-section" key={key}>
-                      <h3>
-                        <Icon size={19} />
-                        {title}
-                      </h3>
-                      <ul>
-                        {selected.result[key]?.length ? (
-                          selected.result[key].map((s, i) => (
-                            <li key={i}>{s}</li>
-                          ))
-                        ) : (
-                          <li>
-                            No se detallaron elementos adicionales; esto no
-                            garantiza ausencia de riesgos.
-                          </li>
-                        )}
-                      </ul>
-                    </section>
-                  ))}
+                  )
+                    // Rule checks replace the plain checks list; legacy
+                    // analyses without rules keep the old list.
+                    .filter(
+                      ([key]) =>
+                        key !== "checks" || !selected.result.rules?.length,
+                    )
+                    .map(([key, title, Icon]) => (
+                      <section className="result-section" key={key}>
+                        <h3>
+                          <Icon size={19} />
+                          {title}
+                        </h3>
+                        <ul>
+                          {selected.result[key]?.length ? (
+                            selected.result[key].map((s, i) => (
+                              <li key={i}>{s}</li>
+                            ))
+                          ) : (
+                            <li>
+                              No se detallaron elementos adicionales; esto no
+                              garantiza ausencia de riesgos.
+                            </li>
+                          )}
+                        </ul>
+                      </section>
+                    ))}
                   <FeedbackPanel
                     key={selected.id}
                     analysis={selected}

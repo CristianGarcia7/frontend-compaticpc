@@ -2450,3 +2450,9 @@ td {
     display: none;
   }
 }
+/* The login screen is a <main> landmark; undo the workspace <main> box. */
+main.auth-page {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+}

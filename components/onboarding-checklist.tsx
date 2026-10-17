@@ -12,11 +12,14 @@ export function OnboardingChecklist({
   analysesCount,
   analyses,
   onNavigate,
+  onRegisterEquipment,
 }: {
   equipmentCount: number;
   analysesCount: number;
   analyses: Analysis[];
   onNavigate: (view: string) => void;
+  /** Goes to the equipment page with the register form already open. */
+  onRegisterEquipment: () => void;
 }) {
   // Start hidden to avoid a flash before localStorage is read.
   const [dismissed, setDismissed] = useState(true);
@@ -39,12 +42,13 @@ export function OnboardingChecklist({
     {
       done: equipmentCount > 0,
       label: "Registre su primer equipo",
-      action: () => onNavigate("equipment"),
+      action: onRegisterEquipment,
     },
     {
       done: analysesCount > 0,
       label: "Haga su primera consulta",
-      action: () => onNavigate(equipmentCount ? "query" : "equipment"),
+      action: () =>
+        equipmentCount ? onNavigate("query") : onRegisterEquipment(),
     },
     {
       done: analysesCount > 0,

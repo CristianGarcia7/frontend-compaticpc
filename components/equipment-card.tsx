@@ -111,7 +111,10 @@ export function EquipmentCard({
             className="icon-button"
             aria-label={`Editar ${e.model}`}
             disabled={busy}
-            onClick={() => setEditing(true)}
+            onClick={() => {
+              onNotice("");
+              setEditing(true);
+            }}
           >
             <Pencil size={16} />
           </button>
