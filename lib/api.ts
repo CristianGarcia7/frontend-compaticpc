@@ -3,13 +3,15 @@ export type ApiErrorKind =
 
 /** Error thrown by `api()`. `message` is always actionable Spanish copy. */
 export class ApiError extends Error {
-  constructor(
-    message: string,
-    readonly kind: ApiErrorKind,
-    readonly status = 0,
-  ) {
+  // Explicit fields instead of parameter properties: Node's type stripping
+  // (used by the test runner) only supports erasable TypeScript syntax.
+  readonly kind: ApiErrorKind;
+  readonly status: number;
+  constructor(message: string, kind: ApiErrorKind, status = 0) {
     super(message);
     this.name = "ApiError";
+    this.kind = kind;
+    this.status = status;
   }
 }
 
@@ -30,13 +32,24 @@ const CLIENT_MESSAGE =
 const operatorCopy =
   /cuota|configuraci[oó]n del servidor|clave en el servidor/i;
 
+/** Nest sends validation errors as `message: string[]`; join them. */
+export function serverText(message: unknown): string {
+  if (Array.isArray(message)) {
+    const parts = message
+      .filter((m): m is string => typeof m === "string" && m.trim() !== "")
+      .map((m) => m.trim().replace(/\.+$/, ""));
+    return parts.length ? `${parts.join(". ")}.` : "";
+  }
+  return typeof message === "string" ? message.trim() : "";
+}
+
 /** Maps an HTTP status and the server message to technician-friendly copy. */
 export function friendlyError(
   status: number,
   serverMessage: unknown,
   path = "",
 ): ApiError {
-  const raw = typeof serverMessage === "string" ? serverMessage.trim() : "";
+  const raw = serverText(serverMessage);
   const usable = raw && !operatorCopy.test(raw) && !/^[A-Za-z ]+$/.test(raw);
   if (status === 401)
     // Wrong credentials on login keep the server copy; elsewhere the session expired.
