@@ -98,30 +98,42 @@ export function retrySession() {
   return ensureSession();
 }
 
+/**
+ * Incremented on every sign-in and sign-out. Requests capture it when they
+ * start and drop their result if the session changed while they were in flight,
+ * so a previous user's data never lands in the new session.
+ */
+let epoch = 0;
+
 let dataPromise: Promise<void> | null = null;
 /** Loads the four workspace resources once per signed-in user. */
 export function ensureData(force = false): Promise<void> {
   if (force) dataPromise = null;
   if (!dataPromise) {
-    dataPromise = Promise.all([
+    const started = epoch;
+    const request: Promise<void> = Promise.all([
       api<Equipment[]>("/equipment"),
       api<Component[]>("/components"),
       api<Analysis[]>("/analyses"),
       api<Stats>("/dashboard"),
     ]).then(
-      ([equipment, components, analyses, stats]) =>
+      ([equipment, components, analyses, stats]) => {
+        if (started !== epoch) return;
         setSession({
           equipment,
           components,
           analyses,
           stats,
           dataLoaded: true,
-        }),
+        });
+      },
       (e) => {
-        dataPromise = null;
+        if (dataPromise === request) dataPromise = null;
+        if (started !== epoch) return;
         throw e;
       },
     );
+    dataPromise = request;
   }
   return dataPromise;
 }
@@ -136,12 +148,17 @@ export function loadAnalysis(id: string): Promise<Analysis> {
   if (cached) return Promise.resolve(cached);
   let request = detailRequests.get(id);
   if (!request) {
-    request = api<Analysis>(`/analyses/${id}`)
+    const started = epoch;
+    const pending: Promise<Analysis> = api<Analysis>(`/analyses/${id}`)
       .then((row) => {
-        rememberAnalysis(row);
+        // Do not cache a previous session's analysis after logout/login.
+        if (started === epoch) rememberAnalysis(row);
         return row;
       })
-      .finally(() => detailRequests.delete(id));
+      .finally(() => {
+        if (detailRequests.get(id) === pending) detailRequests.delete(id);
+      });
+    request = pending;
     detailRequests.set(id, request);
   }
   return request;
@@ -171,10 +188,13 @@ export function addAnalysis(row: Analysis) {
 }
 
 export function signedIn(user: User) {
+  epoch++;
   dataPromise = null;
+  detailRequests.clear();
   setSession({ ...initial, config: state.config, loading: false, user });
 }
 export function signedOut(flash = "") {
+  epoch++;
   dataPromise = null;
   detailRequests.clear();
   setSession({ ...initial, config: state.config, loading: false, flash });

@@ -155,7 +155,12 @@ export default function App() {
     if (!user && pathname !== "/login") router.replace("/login");
     if (user && pathname === "/login") router.replace("/dashboard");
   }, [loading, session.sessionError, user, pathname, router]);
+  /** Shows an error; an expired session signs out and returns to /login. */
   function handleError(e: unknown) {
+    if (typeof e === "string") {
+      setError(e);
+      return;
+    }
     if (e instanceof ApiError && e.kind === "auth" && session.user) {
       signedOut(e.message);
       router.replace("/login");
@@ -900,7 +905,7 @@ export default function App() {
                       key={e.id}
                       equipment={e}
                       onNotice={setNotice}
-                      onError={setError}
+                      onError={handleError}
                       onConsult={() => {
                         sessionStorage.setItem(
                           "compatipc-query",
@@ -1482,7 +1487,7 @@ export default function App() {
                     key={selected.id}
                     analysis={selected}
                     onNotice={setNotice}
-                    onError={setError}
+                    onError={handleError}
                   />
                 </section>
                 <aside>

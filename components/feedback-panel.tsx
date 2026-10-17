@@ -1,7 +1,7 @@
 "use client";
 import { Send, ThumbsDown, ThumbsUp } from "lucide-react";
 import { useState } from "react";
-import { api, errorMessage } from "../lib/api";
+import { api } from "../lib/api";
 import { rememberAnalysis } from "../lib/session-store";
 import type { Analysis } from "../lib/types";
 
@@ -15,7 +15,8 @@ export function FeedbackPanel({
 }: {
   analysis: Analysis;
   onNotice: (message: string) => void;
-  onError: (message: string) => void;
+  /** Receives "" to clear, or the raw error so 401s can end the session. */
+  onError: (error: unknown) => void;
 }) {
   const [busy, setBusy] = useState(false);
   const [choice, setChoice] = useState<string | null>(analysis.feedback);
@@ -27,18 +28,23 @@ export function FeedbackPanel({
     onError("");
     try {
       const trimmed = withReason.trim();
-      const updated = await api<Analysis>(`/analyses/${analysis.id}/feedback`, {
-        method: "PATCH",
-        // Only send `reason` when present: older APIs reject unknown fields.
-        body: JSON.stringify(
-          trimmed ? { feedback, reason: trimmed } : { feedback },
-        ),
-      });
+      // A 2xx response without a body yields null.
+      const updated = await api<Analysis | null>(
+        `/analyses/${analysis.id}/feedback`,
+        {
+          method: "PATCH",
+          // Only send `reason` when present: older APIs reject unknown fields.
+          body: JSON.stringify(
+            trimmed ? { feedback, reason: trimmed } : { feedback },
+          ),
+        },
+      );
       rememberAnalysis({
         ...analysis,
-        ...updated,
+        ...(updated ?? {}),
+        feedback,
         feedbackReason:
-          updated.feedbackReason ?? (trimmed || analysis.feedbackReason),
+          updated?.feedbackReason ?? (trimmed || analysis.feedbackReason),
       });
       setChoice(feedback);
       setEditing(!trimmed);
@@ -49,7 +55,7 @@ export function FeedbackPanel({
           : "Gracias. Su opinión fue guardada.",
       );
     } catch (e) {
-      onError(errorMessage(e));
+      onError(e);
     } finally {
       setBusy(false);
     }

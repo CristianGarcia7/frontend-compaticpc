@@ -1,7 +1,7 @@
 "use client";
 import { ArrowUpRight, Check, Monitor, Pencil, Trash2, X } from "lucide-react";
 import { useState, type FormEvent } from "react";
-import { api, errorMessage } from "../lib/api";
+import { api } from "../lib/api";
 import { setSession } from "../lib/session-store";
 import type { Equipment } from "../lib/types";
 import { EquipmentFields } from "./equipment-fields";
@@ -17,7 +17,8 @@ export function EquipmentCard({
   equipment: Equipment;
   onConsult: () => void;
   onNotice: (message: string) => void;
-  onError: (message: string) => void;
+  /** Receives "" to clear, or the raw error so 401s can end the session. */
+  onError: (error: unknown) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -29,7 +30,7 @@ export function EquipmentCard({
     try {
       await fn();
     } catch (err) {
-      onError(errorMessage(err));
+      onError(err);
     } finally {
       setBusy(false);
     }
