@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import {
   buildContentSecurityPolicy,
@@ -104,5 +105,30 @@ describe("securityHeaders", () => {
     for (const feature of ["camera", "microphone", "geolocation", "payment", "usb"]) {
       assert.match(policy, new RegExp(`(^|, )${feature}=\\(\\)`));
     }
+  });
+});
+
+describe("proxy matcher", () => {
+  // Next requires config.matcher to be a static literal, so read it from proxy.ts.
+  const proxySource = readFileSync(new URL("../proxy.ts", import.meta.url), "utf8");
+  // JSON.parse unescapes the string literal exactly as JS would.
+  const source = JSON.parse(proxySource.match(/source:\s*("[^"]+")/)[1]);
+  const matcher = new RegExp(`^${source}$`);
+
+  it("applies the CSP to pages, including look-alikes of excluded paths", () => {
+    for (const path of ["/", "/precios", "/apix", "/icon.svgx", "/api-docs-page", "/favicon.icox"]) {
+      assert.ok(matcher.test(path), `${path} should get the CSP`);
+    }
+  });
+
+  it("skips the API rewrite and static assets", () => {
+    for (const path of ["/api", "/api/x", "/_next/static/a.js", "/_next/image", "/icon.svg", "/favicon.ico"]) {
+      assert.ok(!matcher.test(path), `${path} should not get the CSP`);
+    }
+  });
+
+  it("skips router prefetches", () => {
+    assert.match(proxySource, /key: "next-router-prefetch"/);
+    assert.match(proxySource, /key: "purpose", value: "prefetch"/);
   });
 });

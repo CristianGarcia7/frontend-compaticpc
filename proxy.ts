@@ -24,7 +24,8 @@ export const config = {
   matcher: [
     {
       // Pages only: API rewrites, static assets and the icon need no CSP.
-      source: "/((?!api|_next/static|_next/image|favicon.ico|icon.svg).*)",
+      // Each exclusion ends in "/" or "$" so look-alikes such as /apix keep it.
+      source: "/((?!api/|api$|_next/static/|_next/image|favicon\\.ico$|icon\\.svg$).*)",
       missing: [
         { type: "header", key: "next-router-prefetch" },
         { type: "header", key: "purpose", value: "prefetch" },
