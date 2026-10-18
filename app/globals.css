@@ -2456,3 +2456,288 @@ main.auth-page {
   margin: 0;
   padding: 0;
 }
+/* ---- Go-to-market: landing, pricing, legal, 404 ---- */
+.auth-top a {
+  color: var(--green);
+  font-weight: 650;
+  letter-spacing: 0;
+}
+.terms-note {
+  display: block;
+  margin: -4px 0 14px;
+  line-height: 1.7;
+}
+.terms-note a,
+.legal a,
+.landing-final p a {
+  color: var(--green);
+  text-decoration: underline;
+}
+.landing-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: 32px;
+  align-items: center;
+  background: #e8f0e7;
+  border: 1px solid #e0e9dd;
+  border-radius: 16px;
+  padding: clamp(24px, 5vw, 56px);
+}
+.landing-hero h1 {
+  font-size: clamp(28px, 5vw, 46px);
+  line-height: 1.15;
+  color: #254b35;
+  margin-bottom: 16px;
+  overflow-wrap: break-word;
+}
+.landing-hero h1 em {
+  font-style: normal;
+  color: var(--green);
+}
+.landing-hero p {
+  font-size: clamp(14px, 2vw, 16px);
+  color: #5f735f;
+  max-width: 560px;
+}
+.landing-cta {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 22px;
+}
+.landing-cta > span {
+  font-size: 12px;
+  color: #6b7d70;
+}
+.landing-visual {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 220px;
+  color: #7b9470;
+}
+.landing-chip {
+  position: absolute;
+  background: #fff;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 650;
+  box-shadow: 0 6px 16px #31503314;
+}
+.landing-chip.pass {
+  top: 18%;
+  right: 4%;
+  color: #4c9566;
+}
+.landing-chip.fail {
+  bottom: 16%;
+  left: 4%;
+  color: #b56262;
+}
+.landing-section {
+  margin-top: 56px;
+}
+.landing-section h2,
+.landing-final h2 {
+  font-size: clamp(22px, 4vw, 30px);
+  margin-bottom: 12px;
+}
+.landing-lead {
+  font-size: 15px;
+  color: #5d6e64;
+  max-width: 680px;
+}
+.landing-steps {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+.landing-steps li,
+.landing-benefits article {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 22px;
+  color: var(--green);
+}
+.landing-step-number {
+  display: block;
+  font-size: 11px;
+  font-weight: 750;
+  color: #98a29a;
+  margin-bottom: 10px;
+}
+.landing-steps h3,
+.landing-benefits h3 {
+  color: var(--ink);
+  font-size: 15px;
+  margin: 12px 0 6px;
+}
+.landing-steps p,
+.landing-benefits p {
+  color: #5d6e64;
+  font-size: 13px;
+  margin: 0;
+}
+.landing-benefits {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+.landing-final {
+  margin-top: 56px;
+  text-align: center;
+  background: #f0f3e9;
+  border-radius: 16px;
+  padding: clamp(28px, 5vw, 48px) 20px;
+}
+.landing-final p {
+  color: #5d6e64;
+}
+.pricing-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 18px;
+  margin-top: 28px;
+  align-items: start;
+}
+.pricing-card {
+  position: relative;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 26px;
+}
+.pricing-card.recommended {
+  border: 2px solid var(--green);
+  box-shadow: 0 10px 28px #13694d1a;
+}
+.pricing-badge {
+  position: absolute;
+  top: -12px;
+  left: 26px;
+  background: var(--green);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 20px;
+}
+.pricing-card h2 {
+  font-size: 20px;
+  margin-bottom: 4px;
+}
+.pricing-audience {
+  color: #7a8682;
+  font-size: 13px;
+}
+.pricing-price {
+  font-family: "Manrope", Arial, sans-serif;
+  font-size: 30px;
+  font-weight: 800;
+  margin: 10px 0 16px;
+}
+.pricing-price span {
+  font-size: 12px;
+  font-weight: 600;
+  color: #7a8682;
+}
+.pricing-card ul {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 22px;
+  display: grid;
+  gap: 10px;
+  font-size: 13px;
+  color: #40534a;
+}
+.pricing-card li {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+.pricing-card li svg {
+  color: var(--green);
+  margin-top: 2px;
+}
+.pricing-note {
+  margin-top: 24px;
+  font-size: 12px;
+  color: #7a8682;
+}
+.legal {
+  max-width: 720px;
+  font-size: 14px;
+  color: #40534a;
+  line-height: 1.75;
+}
+.legal h1 {
+  font-size: clamp(26px, 5vw, 34px);
+}
+.legal h2 {
+  font-size: 17px;
+  margin: 26px 0 8px;
+}
+.legal-updated {
+  color: #7a8682;
+  font-size: 12px;
+}
+.not-found {
+  text-align: center;
+  padding: 40px 0;
+}
+.not-found h1 {
+  font-size: clamp(26px, 5vw, 36px);
+}
+.not-found p {
+  color: #5d6e64;
+}
+.not-found .button-row {
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 20px;
+}
+@media (max-width: 760px) {
+  .landing-hero {
+    grid-template-columns: 1fr;
+  }
+  .landing-visual {
+    min-height: 160px;
+  }
+  .public-header nav {
+    gap: 12px;
+  }
+}
+/* Mobile dashboard hero: stack the visual under the copy instead of overlapping it. */
+@media (max-width: 480px) {
+  .hero {
+    flex-direction: column;
+    min-height: 0;
+  }
+  .hero h2 {
+    font-size: 23px;
+  }
+  .hero p {
+    max-width: none;
+  }
+  .hero-visual {
+    position: relative;
+    right: auto;
+    bottom: auto;
+    width: 100%;
+    min-width: 0;
+    height: 130px;
+    opacity: 0.55;
+    overflow: hidden;
+  }
+  .public-header {
+    flex-wrap: wrap;
+  }
+  .public-header nav > a:not(.button) {
+    font-size: 13px;
+  }
+}

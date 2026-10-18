@@ -8,7 +8,10 @@ Backend: [backend-compaticpc](https://github.com/CristianGarcia7/backend-compati
 
 | Ruta | Qué hace |
 |---|---|
-| `/login` | Inicio de sesión y registro |
+| `/` | Página pública: propuesta de valor, cómo funciona y registro gratis |
+| `/precios` | Planes de referencia en COP con prueba gratis |
+| `/terminos` y `/privacidad` | Términos de uso y política de privacidad (Ley 1581 de 2012) |
+| `/login` | Inicio de sesión y registro (`?mode=register\|login`, `?next=/ruta` para volver a la página solicitada) |
 | `/dashboard` | Panel principal con el resumen de tu cuenta |
 | `/equipment` | Registro y gestión de tus equipos |
 | `/consultation` | Nueva consulta de compatibilidad (RAM, almacenamiento, procesador, GPU, fuente, batería o cargador), con ejemplos por campo y ayuda «¿Dónde encuentro esto?» |
