@@ -58,7 +58,6 @@ const deniedFeatures = [
   "geolocation",
   "payment",
   "usb",
-  "bluetooth",
   "serial",
   "hid",
   "magnetometer",

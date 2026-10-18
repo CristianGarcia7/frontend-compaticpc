@@ -106,6 +106,11 @@ describe("securityHeaders", () => {
       assert.match(policy, new RegExp(`(^|, )${feature}=\\(\\)`));
     }
   });
+
+  it("lists only features Chromium recognizes", () => {
+    // Chromium logs "Unrecognized feature: 'bluetooth'" on every page.
+    assert.doesNotMatch(byKey["Permissions-Policy"], /bluetooth/);
+  });
 });
 
 describe("proxy matcher", () => {
