@@ -53,7 +53,8 @@ export type Analysis = {
   result: AnalysisResult;
 };
 export type GeminiHealth = {
-  status: "ok" | "unavailable" | "unconfigured";
+  /** "checking": cold start, probe still running; treated like unknown. */
+  status: "ok" | "checking" | "unavailable" | "unconfigured";
   checkedAt?: string | null;
   detail?: string | null;
 };
