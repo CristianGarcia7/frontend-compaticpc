@@ -30,9 +30,16 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from "react";
 import { api, ApiError, errorMessage } from "../lib/api";
 import { CATEGORIES, CATEGORY_GUIDE, isCategory } from "../lib/categories";
+import { loginWithNext, safeNext } from "../lib/safe-next";
 import {
   addAnalysis,
   ensureData,
@@ -76,6 +83,8 @@ export default function App() {
   const pathname = usePathname(),
     router = useRouter();
   const session = useSession();
+  /** Set on explicit logout so the auth guard sends to plain /login. */
+  const loggingOut = useRef(false);
   const {
     user,
     loading,
@@ -148,6 +157,13 @@ export default function App() {
   }, [pathname]);
   useEffect(() => {
     ensureSession();
+    // Read the query string directly: useSearchParams would force a Suspense
+    // boundary around the whole prerendered workspace.
+    const params = new URLSearchParams(window.location.search);
+    const mode = params.get("mode");
+    if (mode === "login" || mode === "register") setAuthMode(mode);
+    // A `next` target means a returning user (e.g. expired session).
+    else if (params.has("next")) setAuthMode("login");
   }, []);
   useEffect(() => {
     if (user) ensureData().catch((e) => handleError(e));
@@ -164,9 +180,20 @@ export default function App() {
   }, [user, analysisId]);
   useEffect(() => {
     if (loading || session.sessionError) return;
-    if (!user && pathname !== "/login") router.replace("/login");
-    if (user && pathname === "/login") router.replace("/dashboard");
+    if (!user && pathname !== "/login")
+      // After an explicit logout the next user must not inherit this route.
+      router.replace(
+        loggingOut.current ? "/login" : loginWithNext(currentPath()),
+      );
+    if (user && pathname === "/login") router.replace(nextPath());
   }, [loading, session.sessionError, user, pathname, router]);
+  /** Current route including its query string, for `?next=`. */
+  function currentPath() {
+    return `${window.location.pathname}${window.location.search}`;
+  }
+  function nextPath() {
+    return safeNext(new URLSearchParams(window.location.search).get("next"));
+  }
   /** Shows an error; an expired session signs out and returns to /login. */
   function handleError(e: unknown) {
     if (typeof e === "string") {
@@ -175,7 +202,7 @@ export default function App() {
     }
     if (e instanceof ApiError && e.kind === "auth" && session.user) {
       signedOut(e.message);
-      router.replace("/login");
+      router.replace(loginWithNext(currentPath()));
       return;
     }
     setError(errorMessage(e));
@@ -215,7 +242,7 @@ export default function App() {
         body: JSON.stringify(data),
       });
       signedIn(signed);
-      router.push("/dashboard");
+      router.push(nextPath());
     });
   }
   async function createEquipment(event: FormEvent<HTMLFormElement>) {
@@ -453,7 +480,8 @@ export default function App() {
         </section>
         <section className="auth-form-side">
           <div className="auth-top">
-            PROTOTIPO ACADÉMICO <span>v1.0</span>
+            <Link href="/">← Volver al inicio</Link>
+            <span>v1.0</span>
           </div>
           <div className="auth-card">
             <span className="eyebrow">SU TALLER, MÁS CONECTADO</span>
@@ -533,6 +561,14 @@ export default function App() {
                   required
                 />
               </Field>
+              {authMode === "register" && (
+                <p className="input-hint terms-note">
+                  Al crear su cuenta acepta los{" "}
+                  <Link href="/terminos">términos de uso</Link> y la{" "}
+                  <Link href="/privacidad">política de privacidad</Link> (Ley
+                  1581 de 2012).
+                </p>
+              )}
               <Button disabled={busy} className="full">
                 {busy ? (
                   <LoaderCircle className="spin" size={18} />
@@ -669,6 +705,7 @@ export default function App() {
               onClick={() =>
                 action(async () => {
                   await api("/auth/logout", { method: "POST" });
+                  loggingOut.current = true;
                   signedOut();
                   router.push("/login");
                   setView("dashboard");
@@ -1579,7 +1616,10 @@ export default function App() {
               CompatiPC <span>·</span> Compatibilidad con criterio.
             </span>
             <span>
-              <Link href="/ayuda">Ayuda</Link> · Prototipo académico · v1.0
+              <Link href="/precios">Precios</Link> ·{" "}
+              <Link href="/ayuda">Ayuda</Link> ·{" "}
+              <Link href="/terminos">Términos</Link> ·{" "}
+              <Link href="/privacidad">Privacidad</Link>
             </span>
           </footer>
         </main>
