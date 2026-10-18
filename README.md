@@ -23,6 +23,10 @@ Backend: [backend-compaticpc](https://github.com/CristianGarcia7/backend-compati
 
 `lib/session-store.ts` guarda la configuración, la sesión y los datos del espacio de trabajo a nivel de módulo: se cargan una vez por sesión del navegador, las peticiones simultáneas se comparten y las mutaciones actualizan el estado local sin recargar todo.
 
+## 🔒 Cabeceras de seguridad
+
+`lib/security-headers.ts` define las cabeceras. `next.config.ts` añade HSTS, `nosniff`, `Referrer-Policy`, `X-Frame-Options` y `Permissions-Policy` a todas las rutas. `proxy.ts` genera en cada petición una CSP con nonce (`script-src 'self' 'nonce-…' 'strict-dynamic'`). Por eso el layout raíz llama a `connection()`: todas las páginas se renderizan bajo demanda para que Next pueda aplicar el nonce. Si agrega un script, una fuente o un origen externo, actualice la CSP y `test/security-headers.test.mjs`.
+
 ## 🧱 Stack
 
 Next.js 16 (App Router) · React 19 · TypeScript · lucide-react
