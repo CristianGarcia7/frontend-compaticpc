@@ -1,8 +1,8 @@
 import { Cpu } from "lucide-react";
 import type React from "react";
 import type { ReactNode } from "react";
-import type { Analysis } from "../lib/types";
-const verdicts = {
+import type { Verdict } from "../lib/types";
+export const verdicts: Record<Verdict, string> = {
   compatible: "Compatible",
   conditional: "Por verificar",
   incompatible: "Incompatible",
@@ -31,11 +31,11 @@ export function Field({
     </label>
   );
 }
-export function Badge({ value }: { value: Analysis["result"]["verdict"] }) {
+export function Badge({ value }: { value: Verdict }) {
   return (
     <span className={`badge ${value}`}>
       <span />
-      {verdicts[value]}
+      {verdicts[value] || value}
     </span>
   );
 }

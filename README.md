@@ -11,9 +11,14 @@ Backend: [backend-compaticpc](https://github.com/CristianGarcia7/backend-compati
 | `/login` | Inicio de sesión y registro |
 | `/dashboard` | Panel principal con el resumen de tu cuenta |
 | `/equipment` | Registro y gestión de tus equipos |
-| `/consultation` | Nueva consulta de compatibilidad (RAM, almacenamiento, procesador, GPU o fuente) |
-| `/analyses` y `/analyses/[id]` | Historial y detalle: veredicto, revisiones, riesgos, alternativas y PDF |
-| `/catalog` | Catálogo de componentes |
+| `/consultation` | Nueva consulta de compatibilidad (RAM, almacenamiento, procesador, GPU, fuente, batería o cargador), con ejemplos por campo y ayuda «¿Dónde encuentro esto?» |
+| `/analyses` y `/analyses/[id]` | Historial y detalle: veredicto, reglas técnicas, advertencias, riesgos, alternativas, retroalimentación y PDF |
+| `/catalog` | Catálogo de componentes con enlace a la ficha técnica oficial |
+| `/ayuda` | Ayuda y preguntas frecuentes |
+
+## 🧠 Datos en el cliente
+
+`lib/session-store.ts` guarda la configuración, la sesión y los datos del espacio de trabajo a nivel de módulo: se cargan una vez por sesión del navegador, las peticiones simultáneas se comparten y las mutaciones actualizan el estado local sin recargar todo.
 
 ## 🧱 Stack
 

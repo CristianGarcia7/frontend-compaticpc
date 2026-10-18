@@ -2091,3 +2091,368 @@ td {
     transition: none !important;
   }
 }
+/* ---- Autonomy UX: help, rules, onboarding, public pages ---- */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.field-help {
+  margin: 4px 0 18px;
+  font-size: 11px;
+  color: #6b7d70;
+}
+.field-help summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  color: var(--green);
+  font-weight: 650;
+  list-style: none;
+}
+.field-help summary::-webkit-details-marker {
+  display: none;
+}
+.field-help summary:focus-visible {
+  outline: 3px solid #68b8a0;
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+.field-help ul {
+  margin: 10px 0 0;
+  padding: 12px 14px 12px 28px;
+  background: #f6f9f4;
+  border: 1px solid #e3eadf;
+  border-radius: 8px;
+  line-height: 1.8;
+}
+.alert a,
+.auth-note a,
+.onboarding-help a,
+.workspace-footer a,
+.faq-answer a {
+  color: var(--green);
+  font-weight: 650;
+  text-decoration: underline;
+}
+.alert-list {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+.rule-list {
+  list-style: none;
+  padding: 0 !important;
+}
+.rule {
+  display: flex;
+  gap: 11px;
+  align-items: flex-start;
+  padding: 12px !important;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.rule.pass > svg {
+  color: #4c9566;
+}
+.rule.fail > svg {
+  color: #b56262;
+}
+.rule.warn > svg {
+  color: #af8429;
+}
+.rule.unknown > svg {
+  color: #98a29a;
+}
+.rule strong {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  color: #40534a;
+}
+.rule p {
+  margin: 4px 0 0;
+}
+.rule a {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--green);
+  font-weight: 650;
+}
+.rule small {
+  color: #98a29a;
+}
+.rule-status {
+  font-size: 9px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #f4f6f0;
+  color: #7a8682;
+}
+.rule.fail .rule-status {
+  background: #fbeeee;
+  color: #b56262;
+}
+.rule.pass .rule-status {
+  background: #edf7ee;
+  color: #4c9566;
+}
+.rule.warn .rule-status {
+  background: #fff7e5;
+  color: #af8429;
+}
+.feedback-saved {
+  font-size: 11px;
+  color: #6b7d70;
+  margin: 12px 0 0;
+  overflow-wrap: anywhere;
+}
+.feedback-reason {
+  margin-top: 14px;
+  display: grid;
+  gap: 8px;
+}
+.feedback-reason label {
+  font-size: 11px;
+  font-weight: 600;
+}
+.feedback-reason textarea {
+  border: 1px solid #e1e7dd;
+  border-radius: 8px;
+  padding: 10px 12px;
+  resize: vertical;
+}
+.feedback-reason-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.feedback-reason .button {
+  font-size: 10px;
+  padding: 8px 10px;
+  min-height: 35px;
+}
+.onboarding {
+  margin-bottom: 24px;
+}
+.onboarding-progress {
+  height: 6px;
+  background: #eef2ec;
+}
+.onboarding-progress > span {
+  display: block;
+  height: 100%;
+  background: var(--green);
+  transition: width 0.3s;
+}
+.onboarding-steps {
+  list-style: none;
+  margin: 0;
+  padding: 16px 24px 6px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 12px;
+}
+.onboarding-steps li {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 12px;
+}
+.onboarding-steps li > svg {
+  color: #b5c0b8;
+}
+.onboarding-steps li.done {
+  color: #8a938e;
+  text-decoration: line-through;
+}
+.onboarding-steps li.done > svg {
+  color: #4c9566;
+}
+.onboarding-steps a {
+  color: var(--green);
+  font-weight: 650;
+}
+.onboarding-steps .text-button {
+  text-align: left;
+}
+.onboarding-help {
+  font-size: 11px;
+  color: #8a938e;
+  padding: 6px 24px 18px;
+  margin: 0;
+}
+.sidebar nav > .nav-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 14px;
+  font-size: 12px;
+  color: #77847d;
+  font-weight: 550;
+  border-radius: 8px;
+}
+.sidebar nav > .nav-link:hover {
+  background: #f7f9f5;
+}
+.top-help {
+  display: inline-flex;
+  color: #87978a;
+  margin-right: 6px;
+}
+.top-help:hover {
+  color: var(--green);
+}
+.search-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 24px;
+  font-size: 11px;
+  color: #6b7d70;
+  background: #fafbf8;
+}
+.source-note.datasheet {
+  color: var(--green);
+  background: #eef6f0;
+  font-weight: 650;
+  align-items: center;
+}
+.source-note.datasheet:hover {
+  background: #e2f0e6;
+}
+.equipment-card-top > div {
+  display: flex;
+}
+.equipment-card.editing h3 {
+  margin: 0;
+}
+.equipment-card.editing form {
+  margin-top: 14px;
+}
+.loading.inline {
+  min-height: 200px;
+}
+.forgot {
+  margin-top: 14px;
+}
+.forgot p {
+  display: block;
+  margin-top: 8px;
+}
+.public-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+.public-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px clamp(16px, 4vw, 48px);
+  background: #fff;
+  border-bottom: 1px solid var(--line);
+}
+.public-header nav,
+.public-footer nav {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+.public-header nav > a:not(.button) {
+  font-weight: 600;
+  color: #4f6158;
+}
+.public-header .button {
+  min-height: 38px;
+  padding: 9px 14px;
+  font-size: 12px;
+}
+.public-main {
+  flex: 1;
+  width: 100%;
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 40px clamp(16px, 4vw, 48px);
+}
+.public-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 24px clamp(16px, 4vw, 48px);
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+  color: #7a8682;
+}
+.public-footer a:hover {
+  color: var(--green);
+}
+.public-hero.compact h1 {
+  font-size: clamp(26px, 5vw, 36px);
+  margin-bottom: 8px;
+}
+.public-hero.compact p {
+  color: #6b7d70;
+  font-size: 14px;
+}
+.faq {
+  display: grid;
+  gap: 10px;
+  margin-top: 28px;
+}
+.faq details {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 16px 18px;
+}
+.faq summary {
+  cursor: pointer;
+  font-weight: 650;
+  font-size: 14px;
+  font-family: "Manrope", Arial, sans-serif;
+}
+.faq-answer {
+  color: #5d6e64;
+  font-size: 13px;
+  line-height: 1.75;
+  margin-top: 10px;
+}
+.faq-answer ol {
+  padding-left: 20px;
+  margin: 0;
+}
+.faq-contact {
+  margin-top: 24px;
+  font-size: 13px;
+  color: #6b7d70;
+}
+@media (max-width: 480px) {
+  .onboarding-steps {
+    padding: 14px 20px 4px;
+  }
+  .search-summary {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .public-header .brand small {
+    display: none;
+  }
+}
+/* The login screen is a <main> landmark; undo the workspace <main> box. */
+main.auth-page {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+}

@@ -5,7 +5,9 @@ import {
   Check,
   CheckCircle2,
   ChevronRight,
+  CircleHelp,
   Cpu,
+  ExternalLink,
   FileDown,
   History,
   Info,
@@ -17,96 +19,118 @@ import {
   Monitor,
   Pencil,
   Plus,
+  RotateCcw,
   Search,
   ShieldCheck,
   SlidersHorizontal,
   Sparkles,
-  ThumbsDown,
-  ThumbsUp,
   Trash2,
   TriangleAlert,
   X,
 } from "lucide-react";
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState, type FormEvent } from "react";
-import { api } from "../lib/api";
-import type {
-  Analysis,
-  Component,
-  Config,
-  Equipment,
-  User,
-} from "../lib/types";
-import { Badge, Brand, Button, Field } from "./ui";
-const categories = [
-  "RAM",
-  "Almacenamiento",
-  "Procesador",
-  "Tarjeta gráfica",
-  "Fuente de poder",
-];
-const verdicts = {
-  compatible: "Compatible",
-  conditional: "Por verificar",
-  incompatible: "Incompatible",
-};
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { api, ApiError, errorMessage } from "../lib/api";
+import { CATEGORIES, CATEGORY_GUIDE, isCategory } from "../lib/categories";
+import {
+  addAnalysis,
+  ensureData,
+  ensureSession,
+  loadAnalysis,
+  retrySession,
+  setSession,
+  signedIn,
+  signedOut,
+  useSession,
+} from "../lib/session-store";
+import type { Analysis, Component, Equipment, User } from "../lib/types";
+import { EquipmentCard } from "./equipment-card";
+import { EquipmentFields } from "./equipment-fields";
+import { FeedbackPanel } from "./feedback-panel";
+import { FieldHelp } from "./field-help";
+import { OnboardingChecklist } from "./onboarding-checklist";
+import {
+  FallbackBanner,
+  providerLabel,
+  providerShort,
+  ResultRules,
+  ResultWarnings,
+} from "./result-rules";
+import { Badge, Brand, Button, Field, verdicts } from "./ui";
+
 const date = (value: string) =>
   new Intl.DateTimeFormat("es-CO", {
     day: "numeric",
     month: "short",
     year: "numeric",
   }).format(new Date(value));
+const routes: Record<string, string> = {
+  dashboard: "/dashboard",
+  equipment: "/equipment",
+  history: "/analyses",
+  catalog: "/catalog",
+  query: "/consultation",
+};
 export default function App() {
   const pathname = usePathname(),
     router = useRouter();
-  const routes: Record<string, string> = {
-    dashboard: "/dashboard",
-    equipment: "/equipment",
-    history: "/analyses",
-    catalog: "/catalog",
-    query: "/consultation",
-  };
+  const session = useSession();
+  const {
+    user,
+    loading,
+    config,
+    equipment,
+    components,
+    analyses,
+    stats,
+    details,
+  } = session;
   const initialView = pathname.startsWith("/analyses/")
     ? "result"
     : Object.keys(routes).find((k) => routes[k] === pathname) || "dashboard";
-  const [user, setUser] = useState<User | null>(null),
-    [loading, setLoading] = useState(true),
-    [view, setView] = useState(initialView),
+  const analysisId = pathname.startsWith("/analyses/")
+    ? pathname.split("/")[2]
+    : "";
+  const [view, setView] = useState(initialView),
     [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
     [busy, setBusy] = useState(false),
     [mobile, setMobile] = useState(false);
-  const [config, setConfig] = useState<Config>({
-    geminiConfigured: false,
-    demoEnabled: false,
-    model: "",
-  });
-  const [equipment, setEquipment] = useState<Equipment[]>([]),
-    [components, setComponents] = useState<Component[]>([]),
-    [analyses, setAnalyses] = useState<Analysis[]>([]),
-    [stats, setStats] = useState({
-      equipment: 0,
-      analyses: 0,
-      recent: [] as Analysis[],
-    });
-  const [selected, setSelected] = useState<Analysis | null>(null),
-    [search, setSearch] = useState(""),
+  const [search, setSearch] = useState(""),
+    [searchedFor, setSearchedFor] = useState(""),
+    [searchResults, setSearchResults] = useState<Analysis[] | null>(null),
     [authMode, setAuthMode] = useState<"login" | "register">("register"),
     [equipmentForm, setEquipmentForm] = useState(false),
     [componentEdit, setComponentEdit] = useState<Component | null>(null),
-    [componentForm, setComponentForm] = useState(false);
-  const [mode, setMode] = useState("demo"),
+    [componentForm, setComponentForm] = useState(false),
+    [forgot, setForgot] = useState(false);
+  const [mode, setMode] = useState(""),
     [queryEquipment, setQueryEquipment] = useState(""),
-    [category, setCategory] = useState("RAM"),
+    [category, setCategory] = useState<string>("RAM"),
     [reference, setReference] = useState(""),
     [specifications, setSpecifications] = useState("");
+  const selected = analysisId ? details[analysisId] || null : null;
+  const geminiStatus = config.gemini?.status;
+  const geminiDown =
+    geminiStatus === "unavailable" || geminiStatus === "unconfigured";
+  // With Gemini down, steer to the demo; if the demo is disabled too, keep
+  // Gemini selectable because the API then answers with the rules fallback.
+  const geminiSelectable = !geminiDown || !config.demoEnabled;
+  const effectiveMode =
+    (mode === "gemini" && !geminiSelectable ? "demo" : mode) ||
+    (config.geminiConfigured && geminiSelectable
+      ? "gemini"
+      : config.demoEnabled
+        ? "demo"
+        : "gemini");
   useEffect(() => {
     const saved = sessionStorage.getItem("compatipc-query");
     if (saved && pathname === "/consultation") {
       try {
         const draft = JSON.parse(saved);
         setQueryEquipment(draft.equipmentId || "");
-        setCategory(draft.category || "RAM");
+        setCategory(isCategory(draft.category) ? draft.category : "RAM");
         setReference(draft.reference || "");
         setSpecifications(draft.specifications || "");
       } catch {}
@@ -114,45 +138,48 @@ export default function App() {
     }
   }, [pathname]);
   useEffect(() => {
-    if (user && pathname.startsWith("/analyses/"))
-      api<Analysis>(`/analyses/${pathname.split("/")[2]}`)
-        .then(setSelected)
-        .catch((e) => setError(e.message));
-  }, [user, pathname]);
-  async function refresh() {
-    const [e, c, a, s] = await Promise.all([
-      api<Equipment[]>("/equipment"),
-      api<Component[]>("/components"),
-      api<Analysis[]>("/analyses"),
-      api<typeof stats>("/dashboard"),
-    ]);
-    setEquipment(e);
-    setComponents(c);
-    setAnalyses(a);
-    setStats(s);
-  }
+    if (
+      pathname === routes.equipment &&
+      sessionStorage.getItem("compatipc-open-equipment-form")
+    ) {
+      sessionStorage.removeItem("compatipc-open-equipment-form");
+      setEquipmentForm(true);
+    }
+  }, [pathname]);
   useEffect(() => {
-    Promise.all([
-      api<Config>("/config").then((c) => {
-        setConfig(c);
-        setMode(
-          c.geminiConfigured ? "gemini" : c.demoEnabled ? "demo" : "gemini",
-        );
-      }),
-      api<User>("/auth/me")
-        .then(setUser)
-        .catch(() => {}),
-    ])
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
+    ensureSession();
   }, []);
   useEffect(() => {
-    if (!loading && !user && pathname !== "/login") router.replace("/login");
-    if (!loading && user && pathname === "/login") router.replace("/dashboard");
-  }, [loading, user, pathname, router]);
-  useEffect(() => {
-    if (user) refresh().catch((e) => setError(e.message));
+    if (user) ensureData().catch((e) => handleError(e));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
+  useEffect(() => {
+    if (!user || !analysisId) return;
+    let active = true;
+    loadAnalysis(analysisId).catch((e) => active && handleError(e));
+    return () => {
+      active = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, analysisId]);
+  useEffect(() => {
+    if (loading || session.sessionError) return;
+    if (!user && pathname !== "/login") router.replace("/login");
+    if (user && pathname === "/login") router.replace("/dashboard");
+  }, [loading, session.sessionError, user, pathname, router]);
+  /** Shows an error; an expired session signs out and returns to /login. */
+  function handleError(e: unknown) {
+    if (typeof e === "string") {
+      setError(e);
+      return;
+    }
+    if (e instanceof ApiError && e.kind === "auth" && session.user) {
+      signedOut(e.message);
+      router.replace("/login");
+      return;
+    }
+    setError(errorMessage(e));
+  }
   async function action(fn: () => Promise<void>) {
     setBusy(true);
     setError("");
@@ -160,7 +187,7 @@ export default function App() {
     try {
       await fn();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Error inesperado.");
+      handleError(e);
     } finally {
       setBusy(false);
     }
@@ -168,8 +195,8 @@ export default function App() {
   function navigate(next: string) {
     if (routes[next] && pathname !== routes[next]) router.push(routes[next]);
     setView(next);
-    setSelected(null);
     setSearch("");
+    setSearchResults(null);
     setError("");
     setNotice("");
     setMobile(false);
@@ -183,12 +210,11 @@ export default function App() {
         password: f.get("password"),
         ...(authMode === "register" ? { name: f.get("name") } : {}),
       };
-      setUser(
-        await api<User>(`/auth/${authMode}`, {
-          method: "POST",
-          body: JSON.stringify(data),
-        }),
-      );
+      const signed = await api<User>(`/auth/${authMode}`, {
+        method: "POST",
+        body: JSON.stringify(data),
+      });
+      signedIn(signed);
       router.push("/dashboard");
     });
   }
@@ -196,11 +222,14 @@ export default function App() {
     event.preventDefault();
     const form = event.currentTarget;
     await action(async () => {
-      await api("/equipment", {
+      const row = await api<Equipment>("/equipment", {
         method: "POST",
         body: JSON.stringify(Object.fromEntries(new FormData(form))),
       });
-      await refresh();
+      setSession((s) => ({
+        equipment: [row, ...s.equipment],
+        stats: { ...s.stats, equipment: s.stats.equipment + 1 },
+      }));
       setEquipmentForm(false);
       setNotice("Equipo registrado. Ya puede realizar una consulta.");
     });
@@ -210,42 +239,78 @@ export default function App() {
     await action(async () => {
       const row = await api<Analysis>("/analyses", {
         method: "POST",
+        timeoutMs: 60000,
         body: JSON.stringify({
           equipmentId: queryEquipment,
           category,
           reference,
           specifications,
-          mode,
+          mode: effectiveMode,
         }),
       });
-      await refresh();
-      setSelected(row);
+      const fallbackEquipment = equipment.find((e) => e.id === queryEquipment);
+      const complete =
+        row.equipment || !fallbackEquipment
+          ? row
+          : { ...row, equipment: fallbackEquipment };
+      addAnalysis(complete);
       setView("result");
-      router.push(`/analyses/${row.id}`);
+      router.push(`/analyses/${complete.id}`);
     });
   }
   async function saveComponent(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form = event.currentTarget;
+    const values = Object.fromEntries(
+      new FormData(event.currentTarget),
+    ) as Record<string, string>;
+    const datasheetUrl = values.datasheetUrl?.trim() || "";
+    delete values.datasheetUrl;
+    // Older APIs reject unknown fields: only send datasheetUrl when set or cleared.
+    const payload =
+      datasheetUrl || componentEdit?.datasheetUrl
+        ? { ...values, datasheetUrl: datasheetUrl || null }
+        : values;
     await action(async () => {
-      await api(`/components${componentEdit ? `/${componentEdit.id}` : ""}`, {
-        method: componentEdit ? "PATCH" : "POST",
-        body: JSON.stringify(Object.fromEntries(new FormData(form))),
-      });
-      await refresh();
+      const row = await api<Component>(
+        `/components${componentEdit ? `/${componentEdit.id}` : ""}`,
+        {
+          method: componentEdit ? "PATCH" : "POST",
+          body: JSON.stringify(payload),
+        },
+      );
+      setSession((s) => ({
+        components: [...s.components.filter((c) => c.id !== row.id), row].sort(
+          (a, b) => a.name.localeCompare(b.name, "es"),
+        ),
+      }));
       setComponentForm(false);
       setComponentEdit(null);
       setNotice("Catálogo actualizado.");
     });
   }
   function openAnalysis(row: Analysis) {
+    setSession((s) => ({ details: { ...s.details, [row.id]: row } }));
     router.push(`/analyses/${row.id}`);
-    setSelected(row);
     setView("result");
     setError("");
     setNotice("");
   }
-  function rows(items: Analysis[]) {
+  const dataLoading = (
+    <div className="loading inline" role="status">
+      <LoaderCircle className="spin" />
+      <p>Cargando sus datos…</p>
+    </div>
+  );
+  /** Opens the register-equipment form, also across a route change. */
+  function openEquipmentForm() {
+    if (pathname === routes.equipment) setEquipmentForm(true);
+    else {
+      sessionStorage.setItem("compatipc-open-equipment-form", "1");
+      navigate("equipment");
+    }
+  }
+  function rows(items: Analysis[], emptyState: ReactNode) {
+    if (!items.length && !session.dataLoaded) return dataLoading;
     return items.length ? (
       <div className="table-wrap">
         <table>
@@ -270,7 +335,7 @@ export default function App() {
                   >
                     {row.reference}
                     <small>
-                      {row.equipment.brand} {row.equipment.model} ·{" "}
+                      {row.equipment?.brand} {row.equipment?.model} ·{" "}
                       {row.category}
                     </small>
                   </button>
@@ -280,7 +345,7 @@ export default function App() {
                 </td>
                 <td>
                   <span className={`provider ${row.provider}`}>
-                    {row.provider === "demo" ? "DEMOSTRACIÓN" : "Gemini"}
+                    {providerShort(row.provider)}
                   </span>
                 </td>
                 <td className="date">{date(row.createdAt)}</td>
@@ -299,25 +364,29 @@ export default function App() {
         </table>
       </div>
     ) : (
-      <div className="empty">
-        <span className="empty-icon">
-          <Search size={28} />
-        </span>
-        <h3>Aquí comienza su próximo diagnóstico</h3>
-        <p>
-          Registre un equipo y realice su primera consulta.
-          <br />
-          Cada resultado quedará guardado en este espacio.
-        </p>
-        <Button
-          onClick={() => navigate(equipment.length ? "query" : "equipment")}
-        >
-          {equipment.length ? "Realizar consulta" : "Registrar un equipo"}
-          <ArrowRight size={16} />
-        </Button>
-      </div>
+      emptyState
     );
   }
+  const firstUseEmpty = (
+    <div className="empty">
+      <span className="empty-icon">
+        <Search size={28} />
+      </span>
+      <h3>Aquí comienza su próximo diagnóstico</h3>
+      <p>
+        Registre un equipo y realice su primera consulta. Cada resultado quedará
+        guardado en este espacio.
+      </p>
+      <Button
+        onClick={() =>
+          equipment.length ? navigate("query") : openEquipmentForm()
+        }
+      >
+        {equipment.length ? "Realizar consulta" : "Registrar un equipo"}
+        <ArrowRight size={16} />
+      </Button>
+    </div>
+  );
   if (loading)
     return (
       <div className="loading">
@@ -326,9 +395,24 @@ export default function App() {
         <p>Preparando su espacio de trabajo…</p>
       </div>
     );
+  if (!user && session.sessionError)
+    return (
+      <div className="loading">
+        <TriangleAlert size={40} />
+        <p role="alert">{session.sessionError}</p>
+        <div className="button-row">
+          <Button onClick={() => retrySession()}>
+            <RotateCcw size={16} /> Reintentar
+          </Button>
+          <Link className="button secondary" href="/ayuda">
+            Ver ayuda
+          </Link>
+        </div>
+      </div>
+    );
   if (!user)
     return (
-      <div className="auth-page">
+      <main className="auth-page">
         <section className="auth-story">
           <Brand />
           <div className="auth-copy">
@@ -336,11 +420,7 @@ export default function App() {
               MENOS DUDAS. MEJORES DECISIONES.
             </span>
             <h1>
-              Antes de instalar,
-              <br />
-              asegúrese de que
-              <br />
-              <em>todo encaje.</em>
+              Antes de instalar, asegúrese de que <em>todo encaje.</em>
             </h1>
             <p>
               Su asistente para evaluar compatibilidad, identificar riesgos y
@@ -392,8 +472,10 @@ export default function App() {
                 onClick={() => {
                   setAuthMode("register");
                   setError("");
+                  setSession({ flash: "" });
                 }}
                 className={authMode === "register" ? "active" : ""}
+                aria-pressed={authMode === "register"}
               >
                 Crear cuenta
               </button>
@@ -401,15 +483,17 @@ export default function App() {
                 onClick={() => {
                   setAuthMode("login");
                   setError("");
+                  setSession({ flash: "" });
                 }}
                 className={authMode === "login" ? "active" : ""}
+                aria-pressed={authMode === "login"}
               >
                 Iniciar sesión
               </button>
             </div>
-            {error && (
+            {(error || session.flash) && (
               <div role="alert" className="alert error">
-                {error}
+                {error || session.flash}
               </div>
             )}
             <form onSubmit={authenticate}>
@@ -418,7 +502,7 @@ export default function App() {
                   <input
                     name="name"
                     autoComplete="name"
-                    placeholder="Su nombre"
+                    placeholder="Ej. Laura Gómez"
                     maxLength={80}
                     required
                   />
@@ -429,7 +513,7 @@ export default function App() {
                   name="email"
                   type="email"
                   autoComplete="email"
-                  placeholder="nombre@taller.com"
+                  placeholder="Ej. nombre@taller.com"
                   maxLength={254}
                   required
                 />
@@ -460,16 +544,37 @@ export default function App() {
                 <ArrowRight size={18} />
               </Button>
             </form>
+            {authMode === "login" && (
+              <div className="forgot">
+                <button
+                  type="button"
+                  className="text-button"
+                  aria-expanded={forgot}
+                  onClick={() => setForgot(!forgot)}
+                >
+                  ¿Olvidó su contraseña?
+                </button>
+                {/* TODO: password reset by email needs mail infrastructure */}
+                {forgot && (
+                  <p className="input-hint">
+                    Por ahora el restablecimiento se hace con soporte: escriba
+                    desde el correo de su cuenta a soporte@compatipc.co y le
+                    ayudaremos a recuperar el acceso.
+                  </p>
+                )}
+              </div>
+            )}
             <p className="auth-note">
               <Info size={16} /> No necesita una clave de IA para explorar el
-              modo demostración. No ingrese información sensible de clientes.
+              modo demostración. No ingrese información sensible de clientes.{" "}
+              <Link href="/ayuda">¿Necesita ayuda?</Link>
             </p>
           </div>
           <p className="copyright">
             CompatiPC · Tecnología que ayuda a decidir.
           </p>
         </section>
-      </div>
+      </main>
     );
   const nav = [
     { id: "dashboard", label: "Vista general", icon: LayoutDashboard },
@@ -504,6 +609,8 @@ export default function App() {
       "Una recomendación documentada, no una certificación.",
     ],
   };
+  const guide = isCategory(category) ? CATEGORY_GUIDE[category] : null;
+  const historyItems = searchResults ?? analyses;
   return (
     <div className="app-shell">
       <button
@@ -531,17 +638,17 @@ export default function App() {
               {item.id === "query" && <span className="nav-plus">+</span>}
             </button>
           ))}
+          <Link href="/ayuda" className="nav-link">
+            <CircleHelp size={19} />
+            Ayuda y preguntas
+          </Link>
         </nav>
         <div className="sidebar-bottom">
           <div className="sidebar-tip">
             <span className="mini-icon">
               <Sparkles size={18} />
             </span>
-            <h4>
-              La precisión empieza
-              <br />
-              con buenos datos.
-            </h4>
+            <h4>La precisión empieza con buenos datos.</h4>
             <p>Use el modelo exacto y las especificaciones del fabricante.</p>
             <button onClick={() => navigate("query")}>
               Hacer una consulta <ArrowUpRight size={15} />
@@ -562,11 +669,8 @@ export default function App() {
               onClick={() =>
                 action(async () => {
                   await api("/auth/logout", { method: "POST" });
-                  setUser(null);
+                  signedOut();
                   router.push("/login");
-                  setEquipment([]);
-                  setAnalyses([]);
-                  setSelected(null);
                   setView("dashboard");
                 })
               }
@@ -586,12 +690,17 @@ export default function App() {
           </div>
           <div className="top-status">
             <span
-              className={`status-dot ${config.geminiConfigured ? "online" : ""}`}
+              className={`status-dot ${config.geminiConfigured && !geminiDown ? "online" : ""}`}
             />
-            {config.geminiConfigured
-              ? "Gemini configurado"
-              : "Modo demostración disponible"}
+            {geminiStatus === "unavailable"
+              ? "Gemini no disponible · se usarán reglas técnicas"
+              : config.geminiConfigured && geminiStatus !== "unconfigured"
+                ? "Gemini configurado"
+                : "Modo demostración disponible"}
             <span className="top-divider" />
+            <Link href="/ayuda" className="top-help" aria-label="Ayuda">
+              <CircleHelp size={17} />
+            </Link>
             <span className="top-avatar">
               {user.name.charAt(0).toUpperCase()}
             </span>
@@ -631,7 +740,9 @@ export default function App() {
           {error && (
             <div className="alert error" role="alert">
               <TriangleAlert size={18} />
-              {error}
+              <span>
+                {error} <Link href="/ayuda">Ver ayuda</Link>
+              </span>
             </div>
           )}
           {notice && (
@@ -642,20 +753,24 @@ export default function App() {
           )}
           {view === "dashboard" && (
             <>
+              {session.dataLoaded && (
+                <OnboardingChecklist
+                  equipmentCount={stats.equipment}
+                  analysesCount={stats.analyses}
+                  analyses={analyses}
+                  onNavigate={navigate}
+                  onRegisterEquipment={openEquipmentForm}
+                />
+              )}
               <section className="hero">
                 <div className="hero-copy">
                   <span className="hero-kicker">
                     <span /> SU PRÓXIMA DECISIÓN, CON MÁS CLARIDAD
                   </span>
-                  <h2>
-                    Que la compatibilidad
-                    <br />
-                    no sea una suposición.
-                  </h2>
+                  <h2>Que la compatibilidad no sea una suposición.</h2>
                   <p>
-                    Revise componentes, detecte posibles riesgos y guarde
-                    <br className="desktop" /> el respaldo de cada
-                    recomendación.
+                    Revise componentes, detecte posibles riesgos y guarde el
+                    respaldo de cada recomendación.
                   </p>
                   <button onClick={() => navigate("query")}>
                     Iniciar un diagnóstico <ArrowRight size={17} />
@@ -721,7 +836,7 @@ export default function App() {
                     {components.length.toString().padStart(2, "0")}
                   </strong>
                   <small>
-                    Ejemplos no verificados{" "}
+                    Ejemplos de referencia{" "}
                     <button
                       aria-label="Ver catálogo"
                       onClick={() => navigate("catalog")}
@@ -745,7 +860,7 @@ export default function App() {
                       Ver historial <ArrowUpRight size={15} />
                     </button>
                   </div>
-                  {rows(stats.recent)}
+                  {rows(stats.recent, firstUseEmpty)}
                 </section>
                 <section className="guide-card">
                   <span className="eyebrow">UN BUEN PUNTO DE PARTIDA</span>
@@ -787,7 +902,7 @@ export default function App() {
               <div className="bottom-note">
                 <Info size={16} />
                 {config.geminiConfigured
-                  ? "Las respuestas de Gemini pueden contener errores. La configuración no garantiza disponibilidad o cuota."
+                  ? "Las respuestas de Gemini pueden contener errores. Si Gemini no responde, el resultado se basará solo en reglas técnicas."
                   : "Gemini aún no está configurado. Las consultas de demostración son locales y se identifican claramente."}
               </div>
             </>
@@ -807,39 +922,7 @@ export default function App() {
                     </button>
                   </div>
                   <form onSubmit={createEquipment}>
-                    <div className="form-grid">
-                      <Field label="Marca">
-                        <input
-                          name="brand"
-                          placeholder="Ej. Lenovo"
-                          maxLength={60}
-                          required
-                        />
-                      </Field>
-                      <Field label="Modelo exacto">
-                        <input
-                          name="model"
-                          placeholder="Ej. ThinkPad T480"
-                          maxLength={120}
-                          required
-                        />
-                      </Field>
-                      <Field label="Placa base / especificaciones conocidas">
-                        <input
-                          name="board"
-                          placeholder="Referencia, revisión y tipo de memoria"
-                          maxLength={240}
-                          required
-                        />
-                      </Field>
-                      <Field label="Número de serie (opcional, no se envía a la IA)">
-                        <input
-                          name="serial"
-                          maxLength={100}
-                          placeholder="Identificador interno"
-                        />
-                      </Field>
-                    </div>
+                    <EquipmentFields />
                     <Button disabled={busy}>
                       {busy ? "Guardando…" : "Guardar equipo"}
                       <Check size={17} />
@@ -847,55 +930,25 @@ export default function App() {
                   </form>
                 </section>
               )}
-              {equipment.length ? (
+              {!equipment.length && !session.dataLoaded ? (
+                dataLoading
+              ) : equipment.length ? (
                 <div className="equipment-grid">
                   {equipment.map((e) => (
-                    <article className="panel equipment-card" key={e.id}>
-                      <div className="equipment-card-top">
-                        <span className="equipment-icon">
-                          <Monitor size={28} />
-                        </span>
-                        <button
-                          className="icon-button"
-                          aria-label={`Eliminar ${e.model}`}
-                          disabled={busy}
-                          onClick={() => {
-                            if (
-                              confirm(
-                                "¿Eliminar este equipo? Los informes históricos se conservarán.",
-                              )
-                            )
-                              action(async () => {
-                                await api(`/equipment/${e.id}`, {
-                                  method: "DELETE",
-                                });
-                                await refresh();
-                              });
-                          }}
-                        >
-                          <Trash2 size={17} />
-                        </button>
-                      </div>
-                      <span className="eyebrow">{e.brand}</span>
-                      <h3>{e.model}</h3>
-                      <p>{e.board}</p>
-                      <div className="equipment-meta">
-                        Serie: {e.serial || "No registrada"}
-                      </div>
-                      <button
-                        className="text-button"
-                        onClick={() => {
-                          sessionStorage.setItem(
-                            "compatipc-query",
-                            JSON.stringify({ equipmentId: e.id }),
-                          );
-                          setQueryEquipment(e.id);
-                          navigate("query");
-                        }}
-                      >
-                        Consultar compatibilidad <ArrowUpRight size={16} />
-                      </button>
-                    </article>
+                    <EquipmentCard
+                      key={e.id}
+                      equipment={e}
+                      onNotice={setNotice}
+                      onError={handleError}
+                      onConsult={() => {
+                        sessionStorage.setItem(
+                          "compatipc-query",
+                          JSON.stringify({ equipmentId: e.id }),
+                        );
+                        setQueryEquipment(e.id);
+                        navigate("query");
+                      }}
+                    />
                   ))}
                 </div>
               ) : (
@@ -929,7 +982,9 @@ export default function App() {
                   </div>
                   <Search size={23} />
                 </div>
-                {!equipment.length ? (
+                {!equipment.length && !session.dataLoaded ? (
+                  dataLoading
+                ) : !equipment.length ? (
                   <div className="empty">
                     <Monitor size={32} />
                     <h3>Primero, registre un equipo</h3>
@@ -969,7 +1024,7 @@ export default function App() {
                           value={category}
                           onChange={(e) => setCategory(e.target.value)}
                         >
-                          {categories.map((c) => (
+                          {CATEGORIES.map((c) => (
                             <option key={c}>{c}</option>
                           ))}
                         </select>
@@ -979,7 +1034,7 @@ export default function App() {
                           value={reference}
                           onChange={(e) => setReference(e.target.value)}
                           maxLength={160}
-                          placeholder="Ej. Kingston KVR…"
+                          placeholder={guide?.reference || "Ej. Kingston KVR…"}
                           required
                         />
                       </Field>
@@ -990,7 +1045,7 @@ export default function App() {
                         value={specifications}
                         onChange={(e) => setSpecifications(e.target.value)}
                         maxLength={3000}
-                        placeholder="Interfaz, capacidad, voltaje, formato, dimensiones… Incluya los datos del manual que haya comprobado. No incluya datos de clientes."
+                        placeholder={`${guide?.specifications || "Interfaz, capacidad, voltaje, formato…"}. Incluya los datos del manual que haya comprobado. No incluya datos de clientes.`}
                         required
                       />
                     </Field>
@@ -998,16 +1053,19 @@ export default function App() {
                       {specifications.length}/3000 · No incluya información
                       personal.
                     </span>
+                    {guide && <FieldHelp key={category} items={guide.where} />}
                     <div className="section-label">
                       <span>03</span> El tipo de análisis
                     </div>
                     <div className="mode-switch">
-                      <label className={mode === "demo" ? "selected" : ""}>
+                      <label
+                        className={effectiveMode === "demo" ? "selected" : ""}
+                      >
                         <input
                           type="radio"
                           name="mode"
                           value="demo"
-                          checked={mode === "demo"}
+                          checked={effectiveMode === "demo"}
                           onChange={() => setMode("demo")}
                           disabled={!config.demoEnabled}
                         />
@@ -1016,25 +1074,41 @@ export default function App() {
                           <span>Respuesta local · No utiliza Gemini</span>
                         </div>
                       </label>
-                      <label className={mode === "gemini" ? "selected" : ""}>
+                      <label
+                        className={effectiveMode === "gemini" ? "selected" : ""}
+                      >
                         <input
                           type="radio"
                           name="mode"
                           value="gemini"
-                          checked={mode === "gemini"}
+                          checked={effectiveMode === "gemini"}
                           onChange={() => setMode("gemini")}
+                          disabled={!geminiSelectable}
+                          aria-describedby="gemini-mode-note"
                         />
                         <div>
                           <strong>Analizar con Gemini</strong>
-                          <span>
-                            {config.geminiConfigured
-                              ? "IA configurada en el servidor"
-                              : "Requiere configurar la clave"}
+                          <span id="gemini-mode-note">
+                            {!geminiSelectable
+                              ? geminiStatus === "unavailable"
+                                ? "No disponible ahora: Gemini no está respondiendo. Use la demostración o intente más tarde."
+                                : "No disponible: Gemini no está configurado en el servidor."
+                              : config.geminiConfigured
+                                ? "IA configurada en el servidor"
+                                : "Requiere configurar la clave"}
                           </span>
                         </div>
                       </label>
                     </div>
-                    {mode === "demo" ? (
+                    {effectiveMode === "gemini" && geminiDown && (
+                      <div className="alert warning" role="status">
+                        <TriangleAlert size={18} />
+                        {geminiStatus === "unavailable"
+                          ? "Gemini no está respondiendo en este momento. Puede continuar: el resultado se basará solo en reglas técnicas verificables."
+                          : "Gemini no está configurado en el servidor. El resultado se basará solo en reglas técnicas o puede usar el modo demostración."}
+                      </div>
+                    )}
+                    {effectiveMode === "demo" ? (
                       <div className="alert warning">
                         <Info size={18} />
                         DEMOSTRACIÓN: caso didáctico no verificado, no generado
@@ -1050,7 +1124,8 @@ export default function App() {
                     )}
                     <Button
                       disabled={
-                        busy || (mode === "demo" && !config.demoEnabled)
+                        busy ||
+                        (effectiveMode === "demo" && !config.demoEnabled)
                       }
                       className="full"
                     >
@@ -1062,9 +1137,9 @@ export default function App() {
                       ) : (
                         <>
                           <Sparkles size={18} />
-                          {mode === "demo"
+                          {effectiveMode === "demo"
                             ? "Generar demostración"
-                            : "Consultar a Gemini"}
+                            : "Consultar compatibilidad"}
                           <ArrowRight size={17} />
                         </>
                       )}
@@ -1100,8 +1175,7 @@ export default function App() {
                 <section className="panel helper-panel">
                   <h4>¿Quiere explorar un ejemplo?</h4>
                   <p>
-                    Utilice una referencia ilustrativa del catálogo como punto
-                    de partida.
+                    Utilice una referencia del catálogo como punto de partida.
                   </p>
                   <button
                     className="text-button"
@@ -1127,19 +1201,25 @@ export default function App() {
                   className="search-box"
                   onSubmit={(e) => {
                     e.preventDefault();
-                    action(async () =>
-                      setAnalyses(
+                    const term = search.trim();
+                    if (!term) {
+                      setSearchResults(null);
+                      return;
+                    }
+                    action(async () => {
+                      setSearchResults(
                         await api<Analysis[]>(
-                          `/analyses?search=${encodeURIComponent(search)}`,
+                          `/analyses?search=${encodeURIComponent(term)}`,
                         ),
-                      ),
-                    );
+                      );
+                      setSearchedFor(term);
+                    });
                   }}
                 >
                   <Search size={17} />
                   <input
                     aria-label="Buscar por referencia o categoría"
-                    placeholder="Buscar referencia o categoría"
+                    placeholder="Ej. Kingston o RAM"
                     value={search}
                     maxLength={120}
                     onChange={(e) => setSearch(e.target.value)}
@@ -1149,16 +1229,56 @@ export default function App() {
                   </button>
                 </form>
               </div>
-              {rows(analyses)}
+              {searchResults && searchResults.length > 0 && (
+                <div className="search-summary">
+                  {searchResults.length} resultado
+                  {searchResults.length === 1 ? "" : "s"} para «{searchedFor}»
+                  <button
+                    className="text-button"
+                    onClick={() => {
+                      setSearch("");
+                      setSearchResults(null);
+                    }}
+                  >
+                    <X size={14} /> Limpiar búsqueda
+                  </button>
+                </div>
+              )}
+              {rows(
+                historyItems,
+                searchResults ? (
+                  <div className="empty">
+                    <span className="empty-icon">
+                      <Search size={28} />
+                    </span>
+                    <h3>No encontramos consultas para «{searchedFor}»</h3>
+                    <p>
+                      Revise la ortografía o busque por la categoría (por
+                      ejemplo «RAM» o «Batería»).
+                    </p>
+                    <Button
+                      className="secondary"
+                      onClick={() => {
+                        setSearch("");
+                        setSearchResults(null);
+                      }}
+                    >
+                      <X size={16} /> Limpiar búsqueda
+                    </Button>
+                  </div>
+                ) : (
+                  firstUseEmpty
+                ),
+              )}
             </section>
           )}
           {view === "catalog" && (
             <>
               <div className="alert warning">
                 <TriangleAlert size={18} />
-                Catálogo ilustrativo: no contiene especificaciones verificadas
-                por fabricantes ni precios. No es una lista certificada de
-                compatibilidad.
+                Catálogo de referencia: no es una lista certificada de
+                compatibilidad. Confirme siempre en la ficha técnica oficial del
+                fabricante.
               </div>
               {componentForm && user.role === "admin" && (
                 <section className="panel form-panel">
@@ -1174,6 +1294,7 @@ export default function App() {
                         <input
                           name="name"
                           defaultValue={componentEdit?.name}
+                          placeholder="Ej. Kingston FURY Beast KF432C16BB/8"
                           maxLength={160}
                           required
                         />
@@ -1183,7 +1304,7 @@ export default function App() {
                           name="category"
                           defaultValue={componentEdit?.category}
                         >
-                          {categories.map((c) => (
+                          {CATEGORIES.map((c) => (
                             <option key={c}>{c}</option>
                           ))}
                         </select>
@@ -1193,6 +1314,7 @@ export default function App() {
                       <textarea
                         name="specifications"
                         defaultValue={componentEdit?.specifications}
+                        placeholder="Ej. DDR4, DIMM, 8 GB, 3200 MHz, 1.35 V, CL16"
                         maxLength={3000}
                         required
                       />
@@ -1204,8 +1326,18 @@ export default function App() {
                           componentEdit?.source ||
                           "DEMOSTRACIÓN · especificaciones no verificadas por el fabricante"
                         }
+                        placeholder="Ej. Ficha técnica oficial de Kingston, revisada en 2026"
                         maxLength={400}
                         required
+                      />
+                    </Field>
+                    <Field label="Ficha técnica oficial (opcional)">
+                      <input
+                        name="datasheetUrl"
+                        type="url"
+                        defaultValue={componentEdit?.datasheetUrl || ""}
+                        placeholder="Ej. https://www.kingston.com/datasheets/KF432C16BB_8.pdf"
+                        maxLength={500}
                       />
                     </Field>
                     <div className="button-row">
@@ -1232,10 +1364,23 @@ export default function App() {
                     </div>
                     <h3>{c.name}</h3>
                     <p>{c.specifications}</p>
-                    <div className="source-note">
-                      <Info size={14} />
-                      {c.source}
-                    </div>
+                    {c.datasheetUrl ? (
+                      <a
+                        className="source-note datasheet"
+                        href={c.datasheetUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <ExternalLink size={14} />
+                        Ficha técnica oficial
+                        <span className="sr-only"> (abre en otra pestaña)</span>
+                      </a>
+                    ) : (
+                      <div className="source-note">
+                        <Info size={14} />
+                        {c.source}
+                      </div>
+                    )}
                     <div className="catalog-actions">
                       <button
                         className="text-button"
@@ -1282,7 +1427,11 @@ export default function App() {
                                   await api(`/components/${c.id}`, {
                                     method: "DELETE",
                                   });
-                                  await refresh();
+                                  setSession((s) => ({
+                                    components: s.components.filter(
+                                      (x) => x.id !== c.id,
+                                    ),
+                                  }));
                                 });
                             }}
                           >
@@ -1295,6 +1444,12 @@ export default function App() {
                 ))}
               </div>
             </>
+          )}
+          {view === "result" && !selected && !error && (
+            <div className="loading inline" role="status">
+              <LoaderCircle className="spin" />
+              <p>Cargando el resultado…</p>
+            </div>
           )}
           {view === "result" && selected && (
             <>
@@ -1319,6 +1474,8 @@ export default function App() {
                   local. Especificaciones no verificadas.
                 </div>
               )}
+              <FallbackBanner result={selected.result} />
+              <ResultWarnings result={selected.result} />
               <div className="result-grid">
                 <section className="panel result-main">
                   <div className="result-head">
@@ -1335,9 +1492,9 @@ export default function App() {
                       <span className="eyebrow">RESULTADO DEL ANÁLISIS</span>
                       <h2>{verdicts[selected.result.verdict]}</h2>
                     </div>
-                    <Badge value={selected.result.verdict} />
                   </div>
                   <p className="result-summary">{selected.result.summary}</p>
+                  <ResultRules result={selected.result} />
                   {(
                     [
                       ["checks", "Comprobaciones técnicas", ShieldCheck],
@@ -1348,62 +1505,39 @@ export default function App() {
                         Layers,
                       ],
                     ] as const
-                  ).map(([key, title, Icon]) => (
-                    <section className="result-section" key={key}>
-                      <h3>
-                        <Icon size={19} />
-                        {title}
-                      </h3>
-                      <ul>
-                        {selected.result[key].length ? (
-                          selected.result[key].map((s, i) => (
-                            <li key={i}>{s}</li>
-                          ))
-                        ) : (
-                          <li>
-                            No se detallaron elementos adicionales; esto no
-                            garantiza ausencia de riesgos.
-                          </li>
-                        )}
-                      </ul>
-                    </section>
-                  ))}
-                  <div className="feedback">
-                    <div>
-                      <strong>¿Le resultó útil esta orientación?</strong>
-                      <p>Su respuesta queda asociada a esta consulta.</p>
-                    </div>
-                    <div className="button-row">
-                      {(["useful", "not-useful"] as const).map((value, i) => (
-                        <button
-                          key={value}
-                          disabled={busy}
-                          aria-pressed={selected.feedback === value}
-                          className={`button secondary ${selected.feedback === value ? "chosen" : ""}`}
-                          onClick={() =>
-                            action(async () => {
-                              const updated = await api<Analysis>(
-                                `/analyses/${selected.id}/feedback`,
-                                {
-                                  method: "PATCH",
-                                  body: JSON.stringify({ feedback: value }),
-                                },
-                              );
-                              setSelected(updated);
-                              setNotice("Gracias. Su opinión fue guardada.");
-                            })
-                          }
-                        >
-                          {i ? (
-                            <ThumbsDown size={16} />
+                  )
+                    // Rule checks replace the plain checks list; legacy
+                    // analyses without rules keep the old list.
+                    .filter(
+                      ([key]) =>
+                        key !== "checks" || !selected.result.rules?.length,
+                    )
+                    .map(([key, title, Icon]) => (
+                      <section className="result-section" key={key}>
+                        <h3>
+                          <Icon size={19} />
+                          {title}
+                        </h3>
+                        <ul>
+                          {selected.result[key]?.length ? (
+                            selected.result[key].map((s, i) => (
+                              <li key={i}>{s}</li>
+                            ))
                           ) : (
-                            <ThumbsUp size={16} />
-                          )}{" "}
-                          {i ? "No" : "Sí"}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                            <li>
+                              No se detallaron elementos adicionales; esto no
+                              garantiza ausencia de riesgos.
+                            </li>
+                          )}
+                        </ul>
+                      </section>
+                    ))}
+                  <FeedbackPanel
+                    key={selected.id}
+                    analysis={selected}
+                    onNotice={setNotice}
+                    onError={handleError}
+                  />
                 </section>
                 <aside>
                   <section className="panel detail-card">
@@ -1411,10 +1545,10 @@ export default function App() {
                     <dl>
                       <dt>Equipo</dt>
                       <dd>
-                        {selected.equipment.brand} {selected.equipment.model}
+                        {selected.equipment?.brand} {selected.equipment?.model}
                       </dd>
                       <dt>Placa / especificaciones</dt>
-                      <dd>{selected.equipment.board}</dd>
+                      <dd>{selected.equipment?.board}</dd>
                       <dt>Componente</dt>
                       <dd>{selected.reference}</dd>
                       <dt>Categoría</dt>
@@ -1423,9 +1557,7 @@ export default function App() {
                       <dd>{date(selected.createdAt)}</dd>
                       <dt>Origen</dt>
                       <dd>
-                        {selected.provider === "demo"
-                          ? "Demostración local · NO GEMINI"
-                          : `Gemini · ${selected.model}`}
+                        {providerLabel(selected.provider, selected.model)}
                       </dd>
                     </dl>
                   </section>
@@ -1446,7 +1578,9 @@ export default function App() {
             <span>
               CompatiPC <span>·</span> Compatibilidad con criterio.
             </span>
-            <span>Prototipo académico · v1.0</span>
+            <span>
+              <Link href="/ayuda">Ayuda</Link> · Prototipo académico · v1.0
+            </span>
           </footer>
         </main>
       </div>
