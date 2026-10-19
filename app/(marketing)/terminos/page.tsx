@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { PublicShell } from "../../components/public-shell";
+import { PublicShell } from "../../../components/public-shell";
 
 export const metadata: Metadata = {
   title: "Términos de uso · CompatiPC",
